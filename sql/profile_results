@@ -1,0 +1,178 @@
+SELECT k, COUNT(*) AS rows_with_field
+FROM raw.permits, jsonb_object_keys(payload) k
+GROUP BY k ORDER BY rows_with_field desc;
+
+SELECT payload->>'permit_' AS permit, COUNT(*)
+FROM raw.permits 
+GROUP BY 1 HAVING COUNT(*) > 1 ORDER BY 2 DESC LIMIT 20;
+
+-- total rows, partitions loaded, date range
+SELECT COUNT(*), COUNT(DISTINCT partition_date),
+       MIN(payload->>'issue_date'), MAX(payload->>'issue_date')
+FROM raw.permits;
+
+-- present-but-empty values
+SELECT COUNT(*) FILTER (WHERE payload->>'permit_status' = '') AS empty_status,
+       COUNT(*) FILTER (WHERE payload->>'work_type' = '') AS empty_work_type
+FROM raw.permits;
+
+-- does the fee data reconcile?
+SELECT COUNT(*) FROM raw.permits
+WHERE (payload->>'building_fee_subtotal')::numeric
+   <> (payload->>'building_fee_paid')::numeric
+    + (payload->>'building_fee_unpaid')::numeric
+    + (payload->>'building_fee_waived')::numeric;
+
+-- coordinates outside Chicago (rough bounding box)
+SELECT COUNT(*) FROM raw.permits
+WHERE (payload->>'latitude')::numeric NOT BETWEEN 41.6 AND 42.1
+   OR (payload->>'longitude')::numeric NOT BETWEEN -87.95 AND -87.5;
+
+-- issue_date should match its partition
+SELECT COUNT(*) FROM raw.permits
+WHERE LEFT(payload->>'issue_date', 10) <> partition_date::text;
+
+-- application should start on or before issue
+SELECT COUNT(*) FROM raw.permits
+WHERE (payload->>'application_start_date')::date > (payload->>'issue_date')::date;
+
+-- fee fields: do totals add up across fee types?
+SELECT COUNT(*) FROM raw.permits
+WHERE (payload->>'total_fee')::numeric
+   <> (payload->>'building_fee_subtotal')::numeric
+    + (payload->>'zoning_fee_subtotal')::numeric
+    + (payload->>'other_fee_subtotal')::numeric;
+           k            | rows_with_field 
+------------------------+-----------------
+ processing_time        |            2751
+ id                     |            2751
+ street_number          |            2751
+ contact_1_name         |            2751
+ subtotal_unpaid        |            2751
+ application_start_date |            2751
+ subtotal_paid          |            2751
+ zoning_fee_unpaid      |            2751
+ zoning_fee_waived      |            2751
+ zoning_fee_subtotal    |            2751
+ other_fee_unpaid       |            2751
+ building_fee_subtotal  |            2751
+ permit_                |            2751
+ contact_1_type         |            2751
+ street_direction       |            2751
+ building_fee_unpaid    |            2751
+ zoning_fee_paid        |            2751
+ issue_date             |            2751
+ review_type            |            2751
+ building_fee_paid      |            2751
+ total_fee              |            2751
+ permit_type            |            2751
+ other_fee_subtotal     |            2751
+ other_fee_waived       |            2751
+ street_name            |            2751
+ work_description       |            2751
+ subtotal_waived        |            2751
+ other_fee_paid         |            2751
+ building_fee_waived    |            2751
+ contact_1_city         |            2746
+ xcoordinate            |            2745
+ ycoordinate            |            2745
+ contact_1_state        |            2744
+ contact_1_zipcode      |            2741
+ ward                   |            2722
+ community_area         |            2722
+ contact_2_name         |            2721
+ contact_2_type         |            2721
+ contact_2_city         |            2720
+ census_tract           |            2718
+ contact_2_state        |            2715
+ contact_2_zipcode      |            2712
+ location               |            2710
+ longitude              |            2710
+ latitude               |            2710
+ contact_3_type         |            2494
+ contact_3_name         |            2494
+ contact_3_zipcode      |            2494
+ contact_3_city         |            2494
+ contact_3_state        |            2493
+ permit_milestone       |            2485
+ permit_status          |            2485
+ reported_cost          |            2374
+ pin_list               |            2148
+ contact_4_name         |            1861
+ contact_4_type         |            1861
+ contact_4_city         |            1859
+ contact_4_zipcode      |            1858
+ contact_4_state        |            1854
+ work_type              |            1827
+ contact_5_type         |            1257
+ contact_5_name         |            1257
+ contact_5_state        |            1257
+ contact_5_city         |            1257
+ contact_5_zipcode      |            1256
+ contact_6_type         |             649
+ contact_6_name         |             649
+ contact_6_zipcode      |             649
+ contact_6_city         |             649
+ contact_6_state        |             648
+ contact_7_name         |             415
+ contact_7_zipcode      |             415
+ contact_7_type         |             415
+ contact_7_state        |             415
+ contact_7_city         |             415
+ contact_8_name         |             242
+ contact_8_type         |             242
+ contact_8_state        |             242
+ contact_8_city         |             242
+ contact_8_zipcode      |             241
+ permit_condition       |             237
+ contact_9_type         |              77
+ contact_9_state        |              77
+ contact_9_city         |              77
+ contact_9_name         |              77
+ contact_9_zipcode      |              76
+ contact_10_city        |              13
+ contact_10_name        |              13
+ contact_10_zipcode     |              13
+ contact_10_state       |              13
+ contact_10_type        |              13
+(91 rows)
+
+ permit | count 
+--------+-------
+(0 rows)
+
+ count | count |           min           |           max           
+-------+-------+-------------------------+-------------------------
+  2751 |    30 | 2026-10-01T00:00:00.000 | 2026-10-30T00:00:00.000
+(1 row)
+
+ empty_status | empty_work_type 
+--------------+-----------------
+            0 |               0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
